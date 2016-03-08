@@ -1,10 +1,11 @@
 library(lubridate)
 library(dplyr)
-library(quantmod)m
+library(quantmod)
 
 # Load weather data from CSV files
 st_id <- "725033-94728" # Central Park NYC
-weather_data <- read.csv(file = paste("data/csv/weather-", st_id, ".csv", sep = ""))
+weather_data <- read.csv(file =paste("data/csv/weather-",
+                                     st_id, ".csv", sep = ""))
 
 # Set invalid measurements to NA (can I do this easly with dplyr?)
 weather_data$WIND.DIR[weather_data$WIND.DIR == 999] <- NA
@@ -31,15 +32,16 @@ head(weather_data)
 
 # Compute daily averages
 weather_daily <-
-  apply.daily(weather_data[,c("WIND.DIR", "WIND.SPD", "TEMP", "DEW.POINT", "ATM.PRES")], mean)
+  apply.daily(weather_data[,c("WIND.DIR", "WIND.SPD", "TEMP", "DEW.POINT",
+                              "ATM.PRES")], mean)
 presip.dpth_daily <- apply.daily(weather_data[,c("PRECIP.DPTH")], sum)
 weather_daily <- merge.xts(weather_daily, presip.dpth_daily)
 index(weather_daily) <- as.Date(index(weather_daily))
 
-# Get stock prices
-getSymbols("^DJI",src="yahoo")
-names(DJI) <- tolower(substr(names(DJI), 5, 100))
-prices <- DJI
+# Get stock prices (S&P 500)
+getSymbols("^GSPC", src="yahoo", from = "2000-01-01", to = "2009-12-31")
+names(GSPC) <- tolower(substr(names(GSPC), 6, 100))
+prices <- GSPC
 
 # Create column with relative change and variation in stock prices
 n_obs <- dim(prices)[1]
@@ -49,3 +51,31 @@ prices$variation <- (prices$high - prices$low)/prices$open
 # Merge weather and prices to a single time series
 ts <- na.omit(merge(weather_daily, prices))
 head(ts)
+
+################################################################################
+# Start data modelling
+################################################################################
+
+library(caret)
+
+set.seed(1)
+df <- as.data.frame(ts["2000-01"]) %>%
+  select(-volume, -adjusted)
+ind_train <- createDataPartition(df$change, p = .8, list = FALSE)
+ts_train <- df[ind_train,]
+ts_test <- df[-ind_train,]
+
+al_grid <- expand.grid(.alpha = c(0, 0.1, 0.5, 0.7, 1), 
+                       .lambda = seq(0, 20, by = 0.1))
+ctrl <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
+change_tune <- train(change ~ WIND.DIR + WIND.SPD + TEMP + DEW.POINT + ATM.PRES + PRECIP.DPTH,
+                     data = ts_train,
+                     method = "lm", 
+                     # tuneGrid = al_grid,
+                     trControl = ctrl)
+plot(change_tune)
+# WIND.DIR + WIND.SPD + TEMP + DEW.POINT + ATM.PRES + PRECIP.DPTH
+change_coeff <- predict(change_tune$finalModel, s = change_tune$bestTune$lambda, type = "coef")
+pr_change <- predict(change_tune, newdata = ts_test)
+RMSE(pr_change, ts_test$change)
+varImp(change_tune)

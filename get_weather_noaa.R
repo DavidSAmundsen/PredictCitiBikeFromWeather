@@ -6,12 +6,16 @@ library(dplyr)
 # Set longitude and latitude of point to get weather at
 
 # New York Stock Exchange
-lon_obs <- -74.011242
-lat_obs <- 40.706989
+# lon_obs <- -74.011242
+# lat_obs <- 40.706989
+
+# Central Park
+lon_obs <- -73.966556
+lat_obs <- 40.782173
 
 # Set years to get data for
-year_begin <- 2005
-year_end <- 2007
+year_begin <- 2013
+year_end <- 2016
 
 # Download NOAA weather history file with data about weather stations etc.
 st_file <- "ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.csv"
@@ -47,7 +51,7 @@ while (TRUE) {
     i_st <- i_st + 1
   }
 }
-i_st <- 4 # Hard-coded to Central Park
+# i_st <- 4 # Hard-coded to La Guardia Airport
 st_id <- paste(st[i_st, 1], "-", st[i_st, 2], sep = "")
 print(paste(st[i_st, "STATION.NAME"], ": ", st_id, sep = ""))
 
@@ -64,13 +68,11 @@ for (i_year in 1:length(years)) {
   file_status[i_year, 2] <- try(system(wget_cmd, intern = FALSE, ignore.stderr = TRUE))
 }
 
-head(file_status)
-
 # Unzip weather data files
 system("gunzip -r data/raw", intern = FALSE, ignore.stderr = TRUE)
 
 # Extract weather data from files
-files <- list.files("data/raw")
+files <- list.files("data/raw", pattern = st_id)
 column.widths <- c(4, 6, 5, 4, 2, 2, 2, 2, 1, 6,
                    7, 5, 5, 5, 4, 3, 1, 1, 4, 1, 5, 1, 1, 1, 6,
                    1, 1, 1, 5, 1, 5, 1, 5, 1, 3, 3, 2, 4, 1, 1)
