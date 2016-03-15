@@ -1,0 +1,151 @@
+---
+title: "Predicting Citi Bike Usage in NYC"
+author: "David Skålid Amundsen"
+date: "March 15, 2016"
+output: beamer_presentation
+---
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, error = FALSE}
+# Load packages and data frames
+library(dplyr)
+library(lubridate)
+
+load("data/data_frames.dat")
+load("data/models.dat")
+```
+
+## Goal: Predict Citi Bike Usage in NYC
+
+- Demand varies with time, but what determines it?
+
+- What is demand?
+    - Average trip length.
+    - Number of bikes on the road.
+    - Number of new bike rentals per time.
+    
+- I will try to predict:
+    - Number of new bike rentals per time.
+    - Predictors: **time** and **weather**.
+
+## Citi Bike Data
+
+Details each trip:
+
+- Duration
+- Start and end time
+- Stations
+- Age
+- Gender
+- Bike ID.
+
+I reduce it to:
+
+- Time
+- Number of new bike rentals
+
+## Citi Bike Usage on July 4th 2015
+
+```{r, echo = FALSE}
+library(ggplot2)
+
+df_plot <- df_citibike %>%
+  filter(year(time) == 2014 & month(time) == 4 & (day(time) >= 3 & day(time) <= 5))
+ggplot(data = df_plot, aes(x = time, y = numtrips)) +
+  geom_bar(stat = "identity") +
+  xlab("Time") +
+  ylab("Number of new rentals")
+```
+
+## Weather Data
+
+Weather observations from NOAA's weather station in central park:
+
+- Wind speed
+- Direction
+- Temperature
+- Precipitation
+- Pressure
+- Dew point
+
+## Temperature observations
+
+```{r, echo = FALSE}
+library(ggplot2)
+
+df_plot <- df_weather %>%
+  filter(year(time) == 2014 & month(time) == 4 & (day(time) >= 3 & day(time) <= 5))
+ggplot(data = df_plot, aes(x = time, y = TEMP)) +
+  geom_bar(stat = "identity") +
+  xlab("Time") +
+  ylab("Temperature [degrees C]")
+```
+
+## Data for modelling
+
+Using the following predictors:
+
+- Weather:
+    - Wind speed and direction
+    - Temperature
+    - Precipitation
+    - Pressure
+    - Dew point.
+- Time:
+    - Hour of day
+    - Weekday
+
+Consequence:
+
+- Any seasonal variations are modelled by weather.
+
+## Model result:
+
+Random forest provided best fit and prediction:
+
+- RMSE: 360 trips per hour
+- R$^2$: 0.85
+- RMSE on test set: 362 trips per hour
+
+## Test prediction on random day in April 2015 (13th)
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, error = FALSE}
+library(gridExtra)
+
+pr_day_rf <- predict(rf_fit, df_day_test)
+
+# Check interpolation
+plot_data <- ggplot() +
+  geom_bar(aes(x = df_day_test$hour, y = df_day_test$numtrips), stat = "identity") +
+  ylim(0, 3500) +
+  xlab("Hour of day") +
+  ylab("Actual number of trips")
+
+plot_predict <- ggplot() +
+  geom_bar(aes(x = df_day_test$hour, y = pr_day_rf), stat = "identity") +
+  ylim(0, 3500) +
+  xlab("Hour of day") +
+  ylab("Predicted number of trips")
+
+grid.arrange(plot_data, plot_predict, ncol = 2)
+```
+
+## Further improvments
+
+- Depends on major events?
+- Yearly trends?
+- Depends on station location?
+- Depends on cloud cover?
+
+## Other models applied
+
+Generalized linear model:
+
+- RMSE of fit: 497 trips per hour
+- $R^2$: 0.72
+- RMSE of test set: 506 trips per hour
+
+Regression tree:
+
+- RMSE of fit: 419 trips per hour
+- $R^2$: 0.80
+- RMSE of test set: 414 trips per hour
